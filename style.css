@@ -182,6 +182,13 @@ table td {
   color: #555;
 }
 
+table.entry-fee th:first-child,
+table.entry-fee td:first-child,
+table.opening-hours th:first-child,
+table.opening-hours td:first-child {
+  text-align: left;
+}
+
 .header-social a {
   display: block;
   text-decoration: none;
