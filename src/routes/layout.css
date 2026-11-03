@@ -1,10 +1,8 @@
-/* Minimal CSS Reset */
-* {
-  &,
-  &:before,
-  &:after {
-    box-sizing: inherit;
-  }
+/* Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
@@ -121,31 +119,31 @@ a {
   overflow-y: auto;
 }
 
-h2 {
+.clipboard-content h2 {
   text-align: center;
   margin: 0;
   font-family: Handlee, cursive;
   font-size: 1.2em;
 }
 
-table {
+.clipboard-content table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9em;
 }
 
-table th,
-table td {
+.clipboard-content table th,
+.clipboard-content table td {
   padding: 8px 12px;
   border-bottom: 1px solid #ddd;
 }
 
-table th {
+.clipboard-content table th {
   text-align: center;
   font-weight: bold;
 }
 
-table td {
+.clipboard-content table td {
   text-align: center;
   color: #555;
 }

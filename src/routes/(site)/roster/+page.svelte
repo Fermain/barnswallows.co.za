@@ -5,14 +5,16 @@
 		formatMemberName,
 		formatDate,
 		formatDayName,
-		formatMonthYear,
-		season
+		formatMonthYear
 	} from '#lib/site';
 	import { generateGoogleCalendarUrl, downloadIcsFile } from '#lib/calendar';
 
 	type FilterType = 'all' | 'open' | 'filled';
 	let filter = $state<FilterType>('all');
 	let searchQuery = $state('');
+
+	// Client-side date comparison to hide past shifts
+	const todayStr = new Date().toLocaleDateString('en-CA');
 
 	// Map member slugs/ids to member objects
 	const memberMap = new Map(members.map((m) => [m.slug, m]));
@@ -23,6 +25,8 @@
 		dayName: string;
 		formattedDate: string;
 		monthYear: string;
+		weekendKey: string;
+		weekendLabel: string;
 		memberSlug: string | null;
 		memberName: string | null;
 		displayMemberName: string;
@@ -30,29 +34,60 @@
 		note?: string;
 	}
 
-	const enrichedShifts = $derived(
-		shifts.map((s): EnrichedShift => {
-			const member = s.member ? memberMap.get(s.member) : null;
-			const isFilled = !!member;
-			const displayMemberName = member ? formatMemberName(member.name) : 'Open';
+	function getWeekendInfo(dateStr: string): { key: string; label: string } {
+		const d = new Date(`${dateStr}T12:00:00Z`);
+		const day = d.getUTCDay(); // 5 = Fri, 6 = Sat, 0 = Sun
+		const diffToFri = day === 0 ? 2 : day - 5;
+		const fri = new Date(d);
+		fri.setUTCDate(d.getUTCDate() - diffToFri);
+		const sun = new Date(fri);
+		sun.setUTCDate(fri.getUTCDate() + 2);
 
-			return {
-				slug: s.slug,
-				date: s.date,
-				dayName: formatDayName(s.date),
-				formattedDate: formatDate(s.date),
-				monthYear: formatMonthYear(s.date),
-				memberSlug: s.member ?? null,
-				memberName: member?.name ?? null,
-				displayMemberName,
-				isFilled,
-				note: s.note
-			};
-		})
+		const friDay = fri.toLocaleDateString('en-ZA', { day: '2-digit', timeZone: 'UTC' });
+		const sunDay = sun.toLocaleDateString('en-ZA', { day: '2-digit', timeZone: 'UTC' });
+		const friMonth = fri.toLocaleDateString('en-ZA', { month: 'short', timeZone: 'UTC' });
+		const sunMonth = sun.toLocaleDateString('en-ZA', { month: 'short', timeZone: 'UTC' });
+
+		const label =
+			friMonth === sunMonth
+				? `${friDay} – ${sunDay} ${friMonth}`
+				: `${friDay} ${friMonth} – ${sunDay} ${sunMonth}`;
+
+		return {
+			key: fri.toISOString().slice(0, 10),
+			label
+		};
+	}
+
+	// Filter out past shifts and enrich
+	const activeShifts = $derived(
+		shifts
+			.filter((s) => s.date >= todayStr)
+			.map((s): EnrichedShift => {
+				const member = s.member ? memberMap.get(s.member) : null;
+				const isFilled = !!member;
+				const displayMemberName = member ? formatMemberName(member.name) : 'Open';
+				const weekend = getWeekendInfo(s.date);
+
+				return {
+					slug: s.slug,
+					date: s.date,
+					dayName: formatDayName(s.date),
+					formattedDate: formatDate(s.date),
+					monthYear: formatMonthYear(s.date),
+					weekendKey: weekend.key,
+					weekendLabel: weekend.label,
+					memberSlug: s.member ?? null,
+					memberName: member?.name ?? null,
+					displayMemberName,
+					isFilled,
+					note: s.note
+				};
+			})
 	);
 
 	const filteredShifts = $derived(
-		enrichedShifts.filter((s) => {
+		activeShifts.filter((s) => {
 			if (filter === 'open' && s.isFilled) return false;
 			if (filter === 'filled' && !s.isFilled) return false;
 
@@ -68,19 +103,48 @@
 		})
 	);
 
-	// Group shifts by month
-	const groupedByMonth = $derived(() => {
-		const groups = new Map<string, EnrichedShift[]>();
+	interface WeekendGroup {
+		key: string;
+		label: string;
+		shifts: EnrichedShift[];
+	}
+
+	interface MonthGroup {
+		month: string;
+		weekends: WeekendGroup[];
+	}
+
+	// Group shifts by Month, and then within each Month by Weekend
+	const groupedByMonthAndWeek = $derived((): MonthGroup[] => {
+		const monthMap = new Map<string, Map<string, { label: string; shifts: EnrichedShift[] }>>();
+
 		for (const shift of filteredShifts) {
-			const existing = groups.get(shift.monthYear) ?? [];
-			existing.push(shift);
-			groups.set(shift.monthYear, existing);
+			let weekendMap = monthMap.get(shift.monthYear);
+			if (!weekendMap) {
+				weekendMap = new Map();
+				monthMap.set(shift.monthYear, weekendMap);
+			}
+
+			let weekend = weekendMap.get(shift.weekendKey);
+			if (!weekend) {
+				weekend = { label: shift.weekendLabel, shifts: [] };
+				weekendMap.set(shift.weekendKey, weekend);
+			}
+			weekend.shifts.push(shift);
 		}
-		return Array.from(groups.entries()).map(([month, items]) => ({ month, items }));
+
+		return Array.from(monthMap.entries()).map(([month, weekendMap]) => ({
+			month,
+			weekends: Array.from(weekendMap.entries()).map(([key, data]) => ({
+				key,
+				label: data.label,
+				shifts: data.shifts
+			}))
+		}));
 	});
 
-	const totalCount = $derived(enrichedShifts.length);
-	const filledCount = $derived(enrichedShifts.filter((s) => s.isFilled).length);
+	const totalCount = $derived(activeShifts.length);
+	const filledCount = $derived(activeShifts.filter((s) => s.isFilled).length);
 	const openCount = $derived(totalCount - filledCount);
 </script>
 
@@ -89,16 +153,16 @@
 	<meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
-<div class="roster-wrapper">
-	<main class="roster-card">
-		<div class="roster-top">
+<div class="roster-page">
+	<div class="roster-card">
+		<header class="roster-header">
 			<h1 class="fondamento-regular roster-title">Site Duty Roster</h1>
 			<p class="roster-season">6 November 2026 – 25 April 2027</p>
 
 			<div class="stats-row">
 				<div class="stat-badge total">
 					<span class="stat-number">{totalCount}</span>
-					<span class="stat-label">Total Shifts</span>
+					<span class="stat-label">Upcoming Shifts</span>
 				</div>
 				<div class="stat-badge filled">
 					<span class="stat-number">{filledCount}</span>
@@ -144,72 +208,76 @@
 					{/if}
 				</div>
 			</div>
-		</div>
+		</header>
 
-		{#if groupedByMonth().length === 0}
+		{#if groupedByMonthAndWeek().length === 0}
 			<div class="empty-state handlee-regular">
-				<p>No shifts matching your filter.</p>
+				<p>No upcoming shifts matching your filter.</p>
 				<button class="reset-btn" onclick={() => { filter = 'all'; searchQuery = ''; }}>
-					Show all shifts
+					Show all upcoming shifts
 				</button>
 			</div>
 		{:else}
-			<div class="months-list">
-				{#each groupedByMonth() as group}
-					<section class="month-block">
-						<h2 class="month-heading fondamento-regular">{group.month}</h2>
-						<div class="shifts-list">
-							{#each group.items as shift}
-								<div class="shift-row {shift.isFilled ? 'filled' : 'open'}">
-									<div class="shift-when">
-										<span class="shift-day">{shift.dayName}</span>
-										<span class="shift-date">{shift.formattedDate}</span>
-										<span class="shift-time">17:00 – 19:00</span>
+			<div class="months-container">
+				{#each groupedByMonthAndWeek() as monthGroup}
+					<section class="month-section">
+						<h2 class="month-heading fondamento-regular">{monthGroup.month}</h2>
+
+						<div class="weekends-list">
+							{#each monthGroup.weekends as weekend}
+								<div class="weekend-block">
+									<div class="weekend-header">
+										<span class="weekend-label">Weekend: {weekend.label}</span>
 									</div>
 
-									<div class="shift-who">
-										{#if shift.isFilled}
-											<div class="volunteer-assigned">
-												<span class="volunteer-pill filled">
-													✓ {shift.displayMemberName}
-												</span>
-												{#if shift.note}
-													<span class="shift-note">{shift.note}</span>
-												{/if}
-											</div>
-										{:else}
-											<span class="volunteer-pill open">Needs Volunteer</span>
-										{/if}
-									</div>
+									<div class="shifts-list">
+										{#each weekend.shifts as shift}
+											<div class="shift-row {shift.isFilled ? 'filled' : 'open'}">
+												<div class="shift-when">
+													<span class="shift-day">{shift.dayName}</span>
+													<span class="shift-date">{shift.formattedDate}</span>
+													<span class="shift-time">17:00 – 19:00</span>
+												</div>
 
-									<div class="shift-actions">
-										{#if shift.isFilled}
-											<div class="calendar-group">
-												<a
-													href={generateGoogleCalendarUrl(shift.date)}
-													target="_blank"
-													rel="noopener noreferrer"
-													class="action-btn"
-													title="Add to Google Calendar"
-												>
-													Google Cal
-												</a>
-												<button
-													class="action-btn"
-													onclick={() => downloadIcsFile(shift.date, shift.displayMemberName)}
-													title="Download .ics file for Calendar"
-												>
-													.ICS
-												</button>
+												<div class="shift-who">
+													{#if shift.isFilled}
+														<div class="volunteer-assigned">
+															<span class="volunteer-pill filled">
+																✓ {shift.displayMemberName}
+															</span>
+															{#if shift.note}
+																<span class="shift-note">{shift.note}</span>
+															{/if}
+														</div>
+													{:else}
+														<span class="volunteer-pill open">Needs Volunteer</span>
+													{/if}
+												</div>
+
+												<div class="shift-actions">
+													{#if shift.isFilled}
+														<div class="calendar-group">
+															<a
+																href={generateGoogleCalendarUrl(shift.date)}
+																target="_blank"
+																rel="noopener noreferrer"
+																class="action-btn"
+																title="Add to Google Calendar"
+															>
+																Google Cal
+															</a>
+															<button
+																class="action-btn"
+																onclick={() => downloadIcsFile(shift.date, shift.displayMemberName)}
+																title="Download .ics file for Calendar"
+															>
+																.ICS
+															</button>
+														</div>
+													{/if}
+												</div>
 											</div>
-										{:else}
-											<a
-												href="mailto:{season.contact.email}?subject=Volunteer%20for%20Shift%20{shift.date}"
-												class="volunteer-action-btn"
-											>
-												Volunteer
-											</a>
-										{/if}
+										{/each}
 									</div>
 								</div>
 							{/each}
@@ -218,11 +286,11 @@
 				{/each}
 			</div>
 		{/if}
-	</main>
+	</div>
 </div>
 
 <style>
-	.roster-wrapper {
+	.roster-page {
 		min-height: 100vh;
 		padding: 2.5rem 1rem 5rem;
 		box-sizing: border-box;
@@ -241,7 +309,7 @@
 		box-sizing: border-box;
 	}
 
-	.roster-top {
+	.roster-header {
 		text-align: center;
 		margin-bottom: 2rem;
 		border-bottom: 1px solid #ece4d7;
@@ -278,7 +346,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		min-width: 105px;
+		min-width: 110px;
 	}
 
 	.stat-number {
@@ -375,37 +443,64 @@
 		padding: 2px 4px;
 	}
 
-	.months-list {
+	.months-container {
 		display: flex;
 		flex-direction: column;
-		gap: 2rem;
+		gap: 2.5rem;
 	}
 
-	.month-block {
+	.month-section {
 		display: flex;
 		flex-direction: column;
 	}
 
 	.month-heading {
-		font-size: 1.5rem;
+		font-size: 1.6rem;
 		color: #4a3525;
-		margin: 0.5rem 0 0.8rem;
+		margin: 0.5rem 0 1rem;
 		padding-bottom: 0.4rem;
 		border-bottom: 2px solid #eae0d2;
 		text-align: left;
 	}
 
+	.weekends-list {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+	}
+
+	.weekend-block {
+		background: #faf8f5;
+		border: 1px solid #ebd9c5;
+		border-radius: 10px;
+		padding: 0.9rem 1rem 1rem;
+	}
+
+	.weekend-header {
+		margin-bottom: 0.65rem;
+		padding-bottom: 0.4rem;
+		border-bottom: 1px dashed #e2d2be;
+	}
+
+	.weekend-label {
+		font-weight: 700;
+		font-size: 0.9rem;
+		color: #6a4f38;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
 	.shifts-list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.55rem;
+		gap: 0.45rem;
 	}
 
 	.shift-row {
 		background: #ffffff;
 		border: 1px solid #e7ded0;
 		border-radius: 8px;
-		padding: 0.8rem 1.1rem;
+		padding: 0.75rem 1rem;
 		display: grid;
 		grid-template-columns: 190px 1fr auto;
 		align-items: center;
@@ -514,22 +609,6 @@
 		background: #ebe0d0;
 	}
 
-	.volunteer-action-btn {
-		background: #7b4424;
-		color: #ffffff;
-		border: none;
-		padding: 0.4rem 0.9rem;
-		font-size: 0.82rem;
-		border-radius: 5px;
-		text-decoration: none;
-		font-weight: 600;
-		transition: background 150ms;
-	}
-
-	.volunteer-action-btn:hover {
-		background: #5d3117;
-	}
-
 	.empty-state {
 		text-align: center;
 		padding: 3rem 1rem;
@@ -555,7 +634,7 @@
 
 		.shift-row {
 			grid-template-columns: 1fr;
-			gap: 0.7rem;
+			gap: 0.6rem;
 		}
 
 		.controls-bar {
