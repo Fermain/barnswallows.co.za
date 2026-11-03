@@ -1,28 +1,12 @@
 import { collection, defineConfig, fields, setting } from '@fermain/frame';
+import { formSetting } from '@fermain/frame/forms';
+
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
 export default defineConfig({
 	media: { path: 'static', publicPath: '/' },
 
 	collections: {
-		shifts: collection({
-			label: 'Shifts',
-			icon: () => import('@lucide/svelte/icons/calendar'),
-			path: 'src/content/shifts',
-			title: 'date',
-			sort: { field: 'date', direction: 'asc' },
-			fields: {
-				date: fields.date({ label: 'Shift Date' }),
-				member: fields.relation({
-					label: 'Assigned Member',
-					to: 'members',
-					required: false
-				})
-			},
-			components: {
-				view: () => import('./components/ShiftPreview.svelte')
-			}
-		}),
-
 		members: collection({
 			label: 'Members',
 			icon: () => import('@lucide/svelte/icons/users'),
@@ -58,13 +42,21 @@ export default defineConfig({
 					label: 'Closed / Off-Season Message',
 					multiline: true
 				}),
+				opens: fields.date({ label: 'Season Opens', description: 'First day of site duty.' }),
+				closes: fields.date({ label: 'Season Closes', description: 'Last day of site duty.' }),
+				closedDates: fields.list({
+					label: 'Closed Dates',
+					description: 'Days within the season with no site duty, e.g. Christmas Day.',
+					itemLabel: 'Date',
+					item: fields.date({ label: 'Date' })
+				}),
 				hours: fields.list({
 					label: 'Opening Hours',
 					itemLabel: 'Day',
 					item: fields.object({
 						label: 'Hours',
 						fields: {
-							day: fields.text({ label: 'Day of Week' }),
+							day: fields.select({ label: 'Day of Week', options: WEEKDAYS }),
 							open: fields.text({ label: 'Open Time' }),
 							close: fields.text({ label: 'Close Time' })
 						}
@@ -95,6 +87,35 @@ export default defineConfig({
 			components: {
 				view: () => import('./components/SeasonPreview.svelte')
 			}
+		}),
+
+		roster: setting({
+			label: 'Duty Roster',
+			icon: () => import('@lucide/svelte/icons/calendar'),
+			file: 'src/content/settings/roster.json',
+			fields: {
+				assignments: fields.list({
+					label: 'Assignments',
+					description:
+						'Who is on duty when. Shift dates come from the season settings; add a row per person per day.',
+					itemLabel: 'Assignment',
+					item: fields.object({
+						label: 'Assignment',
+						fields: {
+							date: fields.date({ label: 'Date' }),
+							member: fields.relation({ label: 'Member', to: 'members' })
+						}
+					})
+				})
+			},
+			components: {
+				view: () => import('./components/RosterPreview.svelte')
+			}
+		}),
+
+		signup: formSetting({
+			label: 'Shift Sign-up Form',
+			file: 'src/content/settings/signup.json'
 		})
 	}
 });

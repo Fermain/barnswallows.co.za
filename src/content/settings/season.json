@@ -2,14 +2,35 @@
 	"status": "open",
 	"openMessage": "The Barn Swallows have returned! Join us at the viewing site for dusk roosting.",
 	"closedMessage": "The Barn Swallows have now departed KZN for their annual migration to Europe. Thank you to everyone who visited and showed their support. We hope to see you again in November!",
+	"opens": "2026-11-06",
+	"closes": "2027-04-25",
+	"closedDates": [],
 	"hours": [
-		{ "day": "Friday", "open": "17:00", "close": "19:00" },
-		{ "day": "Saturday", "open": "17:00", "close": "19:00" },
-		{ "day": "Sunday", "open": "17:00", "close": "19:00" }
+		{
+			"day": "Friday",
+			"open": "17:00",
+			"close": "19:00"
+		},
+		{
+			"day": "Saturday",
+			"open": "17:00",
+			"close": "19:00"
+		},
+		{
+			"day": "Sunday",
+			"open": "17:00",
+			"close": "19:00"
+		}
 	],
 	"admissions": [
-		{ "type": "Adult", "price": "R50" },
-		{ "type": "Child & Resident", "price": "R20" }
+		{
+			"type": "Adult",
+			"price": "R50"
+		},
+		{
+			"type": "Child & Resident",
+			"price": "R20"
+		}
 	],
 	"contact": {
 		"email": "admin@barnswallows.co.za",

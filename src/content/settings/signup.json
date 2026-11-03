@@ -1,0 +1,5 @@
+{
+	"enabled": true,
+	"submit": "Request this shift",
+	"success": "Thanks! The committee will confirm your shift by email."
+}

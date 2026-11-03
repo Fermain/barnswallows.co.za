@@ -1,157 +1,127 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { HONEYPOT, submitForm } from '@fermain/frame/forms';
 	import {
 		shifts,
 		members,
+		season,
 		formatMemberName,
 		formatDate,
 		formatDayName,
 		formatMonthYear,
-		type Member
+		type Shift
 	} from '#lib/site';
-	import { generateGoogleCalendarUrl, downloadIcsFile } from '#lib/calendar';
+	import { onDuty } from '#lib/ics';
+	import signup from '../../../content/settings/signup.json';
 
-	type FilterType = 'all' | 'open' | 'filled';
-	let filter = $state<FilterType>('all');
-	let searchQuery = $state('');
+	const hub = import.meta.env.VITE_FRAME_HUB;
+	const project = import.meta.env.VITE_FRAME_PROJECT;
+	const canSignUp = signup.enabled;
 
-	// Client-side date comparison to hide past shifts
-	const todayStr = new Date().toLocaleDateString('en-CA');
+	type Filter = 'all' | 'open' | 'mine';
+	let filter = $state<Filter>('all');
+	let me = $state('');
+	let today = $state('');
+	let origin = $state('');
 
-	// Map members by both slug and id to handle ID-only Frame content edits
-	const memberLookup = $derived.by(() => {
-		const map = new Map<string, Member>();
-		for (const m of members) {
-			if (m.slug) map.set(m.slug, m);
-			if (m.id) map.set(m.id, m);
-		}
-		return map;
+	// Browser-only values: the prerendered page doesn't know today's date, the host, or who you are.
+	onMount(() => {
+		today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' });
+		origin = location.host;
+		try {
+			me = localStorage.getItem('roster-me') ?? '';
+		} catch {}
 	});
 
-	interface EnrichedShift {
-		slug: string;
-		date: string;
-		dayName: string;
-		formattedDate: string;
-		monthYear: string;
-		weekendKey: string;
-		weekendLabel: string;
-		memberSlug: string | null;
-		memberName: string | null;
-		displayMemberName: string;
-		isFilled: boolean;
+	function chooseMe(slug: string) {
+		me = slug;
+		if (!slug && filter === 'mine') filter = 'all';
+		try {
+			localStorage.setItem('roster-me', slug);
+		} catch {}
 	}
 
-	function getWeekendInfo(dateStr: string): { key: string; label: string } {
-		const d = new Date(`${dateStr}T12:00:00Z`);
-		const day = d.getUTCDay(); // 5 = Fri, 6 = Sat, 0 = Sun
-		const diffToFri = day === 0 ? 2 : day - 5;
+	const myself = $derived(members.find((m) => m.slug === me));
+	const upcoming = $derived(shifts.filter((s) => s.date >= today));
+	const isMine = (s: Shift) => s.members.some((m) => m.slug === me);
+
+	const visible = $derived(
+		upcoming.filter((s) =>
+			filter === 'open' ? s.members.length === 0 : filter === 'mine' ? isMine(s) : true
+		)
+	);
+
+	/** The Friday that starts a shift's weekend, and a label like "06 – 08 Nov". */
+	function weekendOf(date: string) {
+		const d = new Date(`${date}T12:00:00Z`);
 		const fri = new Date(d);
-		fri.setUTCDate(d.getUTCDate() - diffToFri);
+		fri.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 2) % 7));
 		const sun = new Date(fri);
 		sun.setUTCDate(fri.getUTCDate() + 2);
-
-		const friDay = fri.toLocaleDateString('en-ZA', { day: '2-digit', timeZone: 'UTC' });
-		const sunDay = sun.toLocaleDateString('en-ZA', { day: '2-digit', timeZone: 'UTC' });
-		const friMonth = fri.toLocaleDateString('en-ZA', { month: 'short', timeZone: 'UTC' });
-		const sunMonth = sun.toLocaleDateString('en-ZA', { month: 'short', timeZone: 'UTC' });
-
-		const label =
-			friMonth === sunMonth
-				? `${friDay} – ${sunDay} ${friMonth}`
-				: `${friDay} ${friMonth} – ${sunDay} ${sunMonth}`;
-
-		return {
-			key: fri.toISOString().slice(0, 10),
-			label
-		};
+		const fmt = (x: Date, opts: Intl.DateTimeFormatOptions) =>
+			x.toLocaleDateString('en-ZA', { ...opts, timeZone: 'UTC' });
+		const sameMonth = fri.getUTCMonth() === sun.getUTCMonth();
+		const label = sameMonth
+			? `${fmt(fri, { day: '2-digit' })} – ${fmt(sun, { day: '2-digit', month: 'short' })}`
+			: `${fmt(fri, { day: '2-digit', month: 'short' })} – ${fmt(sun, { day: '2-digit', month: 'short' })}`;
+		return { key: fri.toISOString().slice(0, 10), label };
 	}
 
-	// Filter out past shifts and enrich
-	const activeShifts = $derived(
-		shifts
-			.filter((s) => s.date >= todayStr)
-			.map((s): EnrichedShift => {
-				const member = s.member ? memberLookup.get(s.member) : null;
-				const isFilled = !!member;
-				const displayMemberName = member ? formatMemberName(member.name) : 'Open';
-				const weekend = getWeekendInfo(s.date);
-
-				return {
-					slug: s.slug,
-					date: s.date,
-					dayName: formatDayName(s.date),
-					formattedDate: formatDate(s.date),
-					monthYear: formatMonthYear(s.date),
-					weekendKey: weekend.key,
-					weekendLabel: weekend.label,
-					memberSlug: s.member ?? null,
-					memberName: member?.name ?? null,
-					displayMemberName,
-					isFilled
-				};
-			})
-	);
-
-	const filteredShifts = $derived(
-		activeShifts.filter((s) => {
-			if (filter === 'open' && s.isFilled) return false;
-			if (filter === 'filled' && !s.isFilled) return false;
-
-			if (searchQuery.trim()) {
-				const query = searchQuery.toLowerCase().trim();
-				const matchName = s.memberName?.toLowerCase().includes(query) ?? false;
-				const matchDisplay = s.displayMemberName.toLowerCase().includes(query);
-				const matchDate = s.formattedDate.toLowerCase().includes(query);
-				const matchDay = s.dayName.toLowerCase().includes(query);
-				return matchName || matchDisplay || matchDate || matchDay;
-			}
-			return true;
-		})
-	);
-
-	interface WeekendGroup {
-		key: string;
-		label: string;
-		shifts: EnrichedShift[];
-	}
-
-	interface MonthGroup {
-		month: string;
-		weekends: WeekendGroup[];
-	}
-
-	// Group shifts by Month, and then within each Month by Weekend
-	const groupedByMonthAndWeek = $derived((): MonthGroup[] => {
-		const monthMap = new Map<string, Map<string, { label: string; shifts: EnrichedShift[] }>>();
-
-		for (const shift of filteredShifts) {
-			let weekendMap = monthMap.get(shift.monthYear);
-			if (!weekendMap) {
-				weekendMap = new Map();
-				monthMap.set(shift.monthYear, weekendMap);
-			}
-
-			let weekend = weekendMap.get(shift.weekendKey);
-			if (!weekend) {
-				weekend = { label: shift.weekendLabel, shifts: [] };
-				weekendMap.set(shift.weekendKey, weekend);
-			}
-			weekend.shifts.push(shift);
+	const months = $derived.by(() => {
+		const result: Array<{ month: string; weekends: Array<{ key: string; label: string; shifts: Shift[] }> }> = [];
+		for (const shift of visible) {
+			const month = formatMonthYear(shift.date);
+			const { key, label } = weekendOf(shift.date);
+			let m = result.at(-1);
+			if (m?.month !== month) result.push((m = { month, weekends: [] }));
+			let w = m.weekends.at(-1);
+			if (w?.key !== key) m.weekends.push((w = { key, label, shifts: [] }));
+			w.shifts.push(shift);
 		}
-
-		return Array.from(monthMap.entries()).map(([month, weekendMap]) => ({
-			month,
-			weekends: Array.from(weekendMap.entries()).map(([key, data]) => ({
-				key,
-				label: data.label,
-				shifts: data.shifts
-			}))
-		}));
+		return result;
 	});
 
-	const totalCount = $derived(activeShifts.length);
-	const filledCount = $derived(activeShifts.filter((s) => s.isFilled).length);
-	const openCount = $derived(totalCount - filledCount);
+	const openCount = $derived(upcoming.filter((s) => s.members.length === 0).length);
+	const myCount = $derived(upcoming.filter(isMine).length);
+
+	// Calendar subscriptions
+	const feed = (path: string) => `webcal://${origin}${path}`;
+	const google = (path: string) =>
+		`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(feed(path))}`;
+
+	// Signing up for an open shift
+	let requesting = $state<string | null>(null);
+	let sending = $state(false);
+	let problem = $state('');
+	let requested = $state<Set<string>>(new Set());
+
+	async function requestShift(event: SubmitEvent, shift: Shift) {
+		event.preventDefault();
+		const form = event.currentTarget as HTMLFormElement;
+		const data = new FormData(form);
+		data.set('date', shift.date);
+		data.set(
+			'message',
+			`Please put me down for site duty on ${formatDayName(shift.date)} ${formatDate(shift.date)}, ${shift.start}–${shift.end}.`
+		);
+
+		if (!hub || !project) {
+			problem = `Sign-ups aren't connected yet. Please email ${season.contact.email} to take this shift.`;
+			return;
+		}
+
+		sending = true;
+		problem = '';
+		const result = await submitForm({ hub, project, form: 'roster' }, data);
+		sending = false;
+
+		if (result.sent) {
+			requested = new Set([...requested, shift.date]);
+			requesting = null;
+		} else {
+			problem = result.problem;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -165,102 +135,113 @@
 			<h1 class="fondamento-regular roster-title">Site Duty Roster</h1>
 
 			<div class="controls-bar">
+				<label class="me">
+					<span>I am</span>
+					<select value={me} onchange={(e) => chooseMe(e.currentTarget.value)}>
+						<option value="">Choose your name…</option>
+						{#each members as member}
+							<option value={member.slug}>{member.name}</option>
+						{/each}
+					</select>
+				</label>
+
 				<div class="filter-tabs">
-					<button
-						class="tab-btn {filter === 'all' ? 'active' : ''}"
-						onclick={() => (filter = 'all')}
-					>
-						All ({totalCount})
+					<button class="tab-btn" class:active={filter === 'all'} onclick={() => (filter = 'all')}>
+						All ({upcoming.length})
 					</button>
-					<button
-						class="tab-btn {filter === 'open' ? 'active' : ''}"
-						onclick={() => (filter = 'open')}
-					>
+					<button class="tab-btn" class:active={filter === 'open'} onclick={() => (filter = 'open')}>
 						Open ({openCount})
 					</button>
-					<button
-						class="tab-btn {filter === 'filled' ? 'active' : ''}"
-						onclick={() => (filter = 'filled')}
-					>
-						Manned ({filledCount})
-					</button>
-				</div>
-
-				<div class="search-box">
-					<input
-						type="text"
-						placeholder="Search name, day or date..."
-						bind:value={searchQuery}
-						class="search-input"
-					/>
-					{#if searchQuery}
-						<button class="clear-btn" onclick={() => (searchQuery = '')} aria-label="Clear search">✕</button>
+					{#if myself}
+						<button class="tab-btn" class:active={filter === 'mine'} onclick={() => (filter = 'mine')}>
+							Mine ({myCount})
+						</button>
 					{/if}
 				</div>
 			</div>
+
+			{#if origin}
+				<div class="subscribe">
+					{#if myself}
+						<span>Add your shifts to your calendar:</span>
+						<a class="action-btn" href={google(`/roster/${myself.slug}.ics`)} target="_blank" rel="noopener noreferrer">Google</a>
+						<a class="action-btn" href={feed(`/roster/${myself.slug}.ics`)}>Apple / Outlook</a>
+					{:else}
+						<span>Add the whole roster to your calendar:</span>
+						<a class="action-btn" href={google('/roster.ics')} target="_blank" rel="noopener noreferrer">Google</a>
+						<a class="action-btn" href={feed('/roster.ics')}>Apple / Outlook</a>
+					{/if}
+				</div>
+			{/if}
 		</header>
 
-		{#if groupedByMonthAndWeek().length === 0}
+		{#if months.length === 0}
 			<div class="empty-state handlee-regular">
-				<p>No upcoming shifts matching your filter.</p>
-				<button class="reset-btn" onclick={() => { filter = 'all'; searchQuery = ''; }}>
-					Show all upcoming shifts
-				</button>
+				<p>
+					{#if filter === 'mine'}
+						You have no upcoming shifts.
+					{:else if filter === 'open'}
+						Every upcoming shift is covered. Thank you!
+					{:else}
+						No upcoming shifts this season.
+					{/if}
+				</p>
 			</div>
 		{:else}
 			<div class="months-container">
-				{#each groupedByMonthAndWeek() as monthGroup}
+				{#each months as month (month.month)}
 					<section class="month-section">
-						<h2 class="month-heading fondamento-regular">{monthGroup.month}</h2>
+						<h2 class="month-heading fondamento-regular">{month.month}</h2>
 
 						<div class="weekends-list">
-							{#each monthGroup.weekends as weekend}
+							{#each month.weekends as weekend (weekend.key)}
 								<div class="weekend-block">
 									<div class="weekend-header">
 										<span class="weekend-label">Weekend: {weekend.label}</span>
 									</div>
 
 									<div class="shifts-list">
-										{#each weekend.shifts as shift}
-											<div class="shift-row {shift.isFilled ? 'filled' : 'open'}">
+										{#each weekend.shifts as shift (shift.date)}
+											{@const filled = shift.members.length > 0}
+											<div class="shift-row" class:filled class:open={!filled} class:mine={isMine(shift)}>
 												<div class="shift-when">
-													<span class="shift-day">{shift.dayName}</span>
-													<span class="shift-date">{shift.formattedDate}</span>
-													<span class="shift-time">17:00 – 19:00</span>
+													<span class="shift-day">{formatDayName(shift.date)}</span>
+													<span class="shift-date">{formatDate(shift.date)}</span>
+													<span class="shift-time">{shift.start} – {shift.end}</span>
 												</div>
 
 												<div class="shift-who">
-													{#if shift.isFilled}
-														<span class="volunteer-pill filled">
-															✓ {shift.displayMemberName}
-														</span>
-													{:else}
-														<span class="volunteer-pill open">Needs Volunteer</span>
-													{/if}
+													<span class="volunteer-pill" class:filled class:open={!filled}>
+														{filled ? `✓ ${onDuty(shift)}` : 'Needs volunteer'}
+													</span>
 												</div>
 
 												<div class="shift-actions">
-													{#if shift.isFilled}
-														<div class="calendar-group">
-															<a
-																href={generateGoogleCalendarUrl(shift.date)}
-																target="_blank"
-																rel="noopener noreferrer"
-																class="action-btn"
-																title="Add to Google Calendar"
-															>
-																Google Cal
-															</a>
-															<button
-																class="action-btn"
-																onclick={() => downloadIcsFile(shift.date, shift.displayMemberName)}
-																title="Download .ics file for Calendar"
-															>
-																.ICS
+													{#if !filled && canSignUp}
+														{#if requested.has(shift.date)}
+															<span class="requested">Requested</span>
+														{:else if requesting !== shift.date}
+															<button class="action-btn" onclick={() => { requesting = shift.date; problem = ''; }}>
+																Take this shift
 															</button>
-														</div>
+														{/if}
 													{/if}
 												</div>
+
+												{#if requesting === shift.date}
+													<form class="signup" onsubmit={(e) => requestShift(e, shift)}>
+														<input name="name" placeholder="Your name" required value={myself?.name ?? ''} />
+														<input name="email" type="email" placeholder="Your email" required value={myself?.email ?? ''} />
+														<input name={HONEYPOT} class="honeypot" tabindex="-1" autocomplete="off" aria-hidden="true" />
+														<div class="signup-actions">
+															<button class="action-btn primary" disabled={sending}>
+																{sending ? 'Sending…' : signup.submit}
+															</button>
+															<button type="button" class="action-btn" onclick={() => (requesting = null)}>Cancel</button>
+														</div>
+														{#if problem}<p class="problem">{problem}</p>{/if}
+													</form>
+												{/if}
 											</div>
 										{/each}
 									</div>
@@ -270,6 +251,10 @@
 					</section>
 				{/each}
 			</div>
+		{/if}
+
+		{#if requested.size > 0}
+			<p class="success handlee-regular">{signup.success}</p>
 		{/if}
 	</div>
 </div>
@@ -316,6 +301,25 @@
 		gap: 0.8rem;
 	}
 
+	.me {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: #5a4532;
+	}
+
+	.me select,
+	.signup input {
+		padding: 0.45rem 0.7rem;
+		font-size: 0.85rem;
+		border: 1px solid #dcd1c1;
+		border-radius: 8px;
+		background: #faf8f5;
+		color: #333;
+	}
+
 	.filter-tabs {
 		display: inline-flex;
 		gap: 0.25rem;
@@ -342,40 +346,15 @@
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 	}
 
-	.search-box {
-		position: relative;
-		flex: 1;
-		max-width: 280px;
-	}
-
-	.search-input {
-		width: 100%;
-		padding: 0.5rem 2rem 0.5rem 0.85rem;
+	.subscribe {
+		margin-top: 1rem;
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		align-items: center;
+		gap: 0.4rem;
 		font-size: 0.85rem;
-		border: 1px solid #dcd1c1;
-		border-radius: 8px;
-		background: #faf8f5;
-		color: #333;
-		box-sizing: border-box;
-		outline: none;
-	}
-
-	.search-input:focus {
-		border-color: #8b5e3c;
-		background: #ffffff;
-	}
-
-	.clear-btn {
-		position: absolute;
-		right: 8px;
-		top: 50%;
-		transform: translateY(-50%);
-		background: none;
-		border: none;
-		cursor: pointer;
-		color: #888;
-		font-size: 0.8rem;
-		padding: 2px 4px;
+		color: #6b5b4e;
 	}
 
 	.months-container {
@@ -440,11 +419,6 @@
 		grid-template-columns: 190px 1fr auto;
 		align-items: center;
 		gap: 1rem;
-		transition: transform 120ms ease, box-shadow 120ms ease;
-	}
-
-	.shift-row:hover {
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 	}
 
 	.shift-row.open {
@@ -454,6 +428,11 @@
 
 	.shift-row.filled {
 		border-left: 5px solid #10b981;
+	}
+
+	.shift-row.mine {
+		background: #f0faf4;
+		box-shadow: inset 0 0 0 1px #a7dcc0;
 	}
 
 	.shift-when {
@@ -479,18 +458,12 @@
 		font-weight: 500;
 	}
 
-	.shift-who {
-		display: flex;
-		align-items: center;
-	}
-
 	.volunteer-pill {
 		display: inline-block;
 		padding: 0.35rem 0.8rem;
 		border-radius: 20px;
 		font-size: 0.88rem;
 		font-weight: 600;
-		width: fit-content;
 	}
 
 	.volunteer-pill.filled {
@@ -504,16 +477,6 @@
 		color: #b78103;
 		border: 1px solid #ffe0b2;
 		font-style: italic;
-	}
-
-	.shift-actions {
-		display: flex;
-		align-items: center;
-	}
-
-	.calendar-group {
-		display: flex;
-		gap: 0.35rem;
 	}
 
 	.action-btn {
@@ -533,22 +496,61 @@
 		background: #ebe0d0;
 	}
 
+	.action-btn.primary {
+		background: #7b4424;
+		border-color: #7b4424;
+		color: #fff;
+	}
+
+	.requested {
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: #7b4424;
+	}
+
+	.signup {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+		padding-top: 0.6rem;
+		border-top: 1px dashed #e2d2be;
+	}
+
+	.signup input {
+		flex: 1 1 180px;
+	}
+
+	.signup-actions {
+		display: flex;
+		gap: 0.35rem;
+	}
+
+	.honeypot {
+		position: absolute;
+		left: -9999px;
+	}
+
+	.problem {
+		width: 100%;
+		margin: 0;
+		font-size: 0.8rem;
+		color: #b42318;
+	}
+
+	.success {
+		text-align: center;
+		margin: 1.5rem 0 0;
+		font-size: 1.1rem;
+		color: #1b5e20;
+	}
+
 	.empty-state {
 		text-align: center;
 		padding: 3rem 1rem;
 		color: #7c6855;
 		font-size: 1.2rem;
-	}
-
-	.reset-btn {
-		background: #7b4424;
-		color: #fff;
-		border: none;
-		padding: 0.5rem 1rem;
-		font-size: 0.9rem;
-		border-radius: 6px;
-		cursor: pointer;
-		margin-top: 0.5rem;
 	}
 
 	@media (max-width: 680px) {
@@ -564,10 +566,6 @@
 		.controls-bar {
 			flex-direction: column;
 			align-items: stretch;
-		}
-
-		.search-box {
-			max-width: none;
 		}
 	}
 </style>
