@@ -85,19 +85,15 @@
 </script>
 
 <svelte:head>
-	<title>Duty Roster · Mount Moreland Barn Swallows</title>
+	<title>Site Duty Roster · Mount Moreland Barn Swallows</title>
 	<meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
-<div class="roster-page">
-	<div class="roster-container">
-		<header class="roster-header">
-			<a href="/" class="back-link">← Return to website</a>
-			<h1 class="fondamento-regular">Site Duty Roster</h1>
-			<p class="roster-lead handlee-regular">
-				Manning the Lake Victoria Viewing Site on Fridays, Saturdays and Sundays (17:00 – 19:00)
-			</p>
-			<p class="roster-season">Season: 6 November 2026 – 25 April 2027</p>
+<div class="roster-wrapper">
+	<main class="roster-card">
+		<div class="roster-top">
+			<h1 class="fondamento-regular roster-title">Site Duty Roster</h1>
+			<p class="roster-season">6 November 2026 – 25 April 2027</p>
 
 			<div class="stats-row">
 				<div class="stat-badge total">
@@ -114,7 +110,7 @@
 				</div>
 			</div>
 
-			<div class="controls-row">
+			<div class="controls-bar">
 				<div class="filter-tabs">
 					<button
 						class="tab-btn {filter === 'all' ? 'active' : ''}"
@@ -139,16 +135,16 @@
 				<div class="search-box">
 					<input
 						type="text"
-						placeholder="Filter by name or date..."
+						placeholder="Search name, day or date..."
 						bind:value={searchQuery}
 						class="search-input"
 					/>
 					{#if searchQuery}
-						<button class="clear-btn" onclick={() => (searchQuery = '')}>✕</button>
+						<button class="clear-btn" onclick={() => (searchQuery = '')} aria-label="Clear search">✕</button>
 					{/if}
 				</div>
 			</div>
-		</header>
+		</div>
 
 		{#if groupedByMonth().length === 0}
 			<div class="empty-state handlee-regular">
@@ -158,166 +154,146 @@
 				</button>
 			</div>
 		{:else}
-			{#each groupedByMonth() as group}
-				<section class="month-section">
-					<h2 class="month-title fondamento-regular">{group.month}</h2>
-					<div class="shifts-grid">
-						{#each group.items as shift}
-							<div class="shift-card {shift.isFilled ? 'filled' : 'open'}">
-								<div class="shift-date-col">
-									<span class="shift-day">{shift.dayName}</span>
-									<span class="shift-date">{shift.formattedDate}</span>
-									<span class="shift-time">17:00 – 19:00</span>
-								</div>
+			<div class="months-list">
+				{#each groupedByMonth() as group}
+					<section class="month-block">
+						<h2 class="month-heading fondamento-regular">{group.month}</h2>
+						<div class="shifts-list">
+							{#each group.items as shift}
+								<div class="shift-row {shift.isFilled ? 'filled' : 'open'}">
+									<div class="shift-when">
+										<span class="shift-day">{shift.dayName}</span>
+										<span class="shift-date">{shift.formattedDate}</span>
+										<span class="shift-time">17:00 – 19:00</span>
+									</div>
 
-								<div class="shift-member-col">
-									{#if shift.isFilled}
-										<div class="member-info">
-											<span class="member-tag filled">
-												✓ {shift.displayMemberName}
-											</span>
-											{#if shift.note}
-												<span class="shift-note">{shift.note}</span>
-											{/if}
-										</div>
-									{:else}
-										<span class="member-tag open">Needs Volunteer</span>
-									{/if}
-								</div>
+									<div class="shift-who">
+										{#if shift.isFilled}
+											<div class="volunteer-assigned">
+												<span class="volunteer-pill filled">
+													✓ {shift.displayMemberName}
+												</span>
+												{#if shift.note}
+													<span class="shift-note">{shift.note}</span>
+												{/if}
+											</div>
+										{:else}
+											<span class="volunteer-pill open">Needs Volunteer</span>
+										{/if}
+									</div>
 
-								<div class="shift-action-col">
-									{#if shift.isFilled}
-										<div class="calendar-actions">
+									<div class="shift-actions">
+										{#if shift.isFilled}
+											<div class="calendar-group">
+												<a
+													href={generateGoogleCalendarUrl(shift.date)}
+													target="_blank"
+													rel="noopener noreferrer"
+													class="action-btn"
+													title="Add to Google Calendar"
+												>
+													Google Cal
+												</a>
+												<button
+													class="action-btn"
+													onclick={() => downloadIcsFile(shift.date, shift.displayMemberName)}
+													title="Download .ics file for Calendar"
+												>
+													.ICS
+												</button>
+											</div>
+										{:else}
 											<a
-												href={generateGoogleCalendarUrl(shift.date)}
-												target="_blank"
-												rel="noopener noreferrer"
-												class="calendar-btn"
-												title="Add to Google Calendar"
+												href="mailto:{season.contact.email}?subject=Volunteer%20for%20Shift%20{shift.date}"
+												class="volunteer-action-btn"
 											>
-												Google Cal
+												Volunteer
 											</a>
-											<button
-												class="calendar-btn"
-												onclick={() => downloadIcsFile(shift.date, shift.displayMemberName)}
-												title="Download .ics file for Apple/Outlook Calendar"
-											>
-												.ICS
-											</button>
-										</div>
-									{:else}
-										<a
-											href="mailto:{season.contact.email}?subject=Volunteer%20for%20Shift%20{shift.date}"
-											class="claim-link"
-										>
-											Volunteer
-										</a>
-									{/if}
+										{/if}
+									</div>
 								</div>
-							</div>
-						{/each}
-					</div>
-				</section>
-			{/each}
+							{/each}
+						</div>
+					</section>
+				{/each}
+			</div>
 		{/if}
-
-		<footer class="roster-info-card">
-			<h3 class="handlee-regular">Site Duty Information</h3>
-			<ul>
-				<li><strong>Hours:</strong> 17:00 to 19:00 (volunteers arrive by 16:45).</li>
-				<li><strong>Admission collection:</strong> Adult R50, Child & Resident R20 (Zapper and Card machine provided).</li>
-				<li><strong>Swallow briefing:</strong> Welcome visitors and assist with parking along the fence line.</li>
-				<li>To claim a shift, update your availability, or swap, please edit via <a href="/admin">Frame Admin</a> or message the coordinator.</li>
-			</ul>
-		</footer>
-	</div>
+	</main>
 </div>
 
 <style>
-	.roster-page {
-		min-height: calc(100vh - 120px);
-		padding: 2rem 1rem 4rem;
+	.roster-wrapper {
+		min-height: 100vh;
+		padding: 2.5rem 1rem 5rem;
+		box-sizing: border-box;
+		display: flex;
+		justify-content: center;
 	}
 
-	.roster-container {
-		max-width: 840px;
-		margin: 0 auto;
-		background: rgba(255, 255, 255, 0.7);
-		backdrop-filter: blur(4px);
-		border: 1px solid rgba(139, 94, 60, 0.2);
-		border-radius: 12px;
-		padding: 2rem;
-		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+	.roster-card {
+		width: 100%;
+		max-width: 820px;
+		background: #ffffff;
+		border: 1px solid #e5dccf;
+		border-radius: 14px;
+		padding: 2.5rem 2rem;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+		box-sizing: border-box;
 	}
 
-	.back-link {
-		display: inline-block;
-		margin-bottom: 1rem;
-		font-size: 0.95rem;
-		color: #7b4424;
-		text-decoration: none;
-		font-weight: 500;
-	}
-
-	.back-link:hover {
-		text-decoration: underline;
-	}
-
-	.roster-header {
+	.roster-top {
 		text-align: center;
-		margin-bottom: 2.5rem;
-		border-bottom: 1px dashed rgba(139, 94, 60, 0.3);
-		padding-bottom: 1.5rem;
+		margin-bottom: 2rem;
+		border-bottom: 1px solid #ece4d7;
+		padding-bottom: 1.8rem;
 	}
 
-	.roster-header h1 {
+	.roster-title {
 		font-size: 2.4rem;
-		margin: 0 0 0.5rem;
+		margin: 0 0 0.3rem;
 		color: #3b2a1a;
-	}
-
-	.roster-lead {
-		font-size: 1.25rem;
-		margin: 0 0 0.25rem;
-		color: #5a4532;
+		letter-spacing: -0.01em;
 	}
 
 	.roster-season {
-		font-size: 0.9rem;
+		font-size: 0.95rem;
 		color: #7c6855;
 		margin: 0 0 1.5rem;
-		font-style: italic;
+		font-weight: 500;
 	}
 
 	.stats-row {
 		display: flex;
 		justify-content: center;
-		gap: 1.5rem;
-		margin-bottom: 1.5rem;
+		gap: 1.25rem;
+		margin-bottom: 1.8rem;
 		flex-wrap: wrap;
 	}
 
 	.stat-badge {
-		background: #fff;
-		border: 1px solid #e2d7c7;
-		padding: 0.6rem 1.2rem;
+		background: #faf7f2;
+		border: 1px solid #e5d9c8;
+		padding: 0.6rem 1.4rem;
 		border-radius: 8px;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		min-width: 100px;
+		min-width: 105px;
 	}
 
 	.stat-number {
-		font-size: 1.4rem;
-		font-weight: bold;
+		font-size: 1.5rem;
+		font-weight: 700;
+		line-height: 1.2;
+		color: #3b2a1a;
 	}
 
 	.stat-label {
-		font-size: 0.75rem;
+		font-size: 0.72rem;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.06em;
 		color: #7c6855;
+		margin-top: 0.2rem;
 	}
 
 	.stat-badge.filled .stat-number {
@@ -328,7 +304,7 @@
 		color: #d32f2f;
 	}
 
-	.controls-row {
+	.controls-bar {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
@@ -338,110 +314,126 @@
 	}
 
 	.filter-tabs {
-		display: flex;
-		gap: 0.4rem;
-		background: #eee6d8;
-		padding: 0.25rem;
-		border-radius: 6px;
+		display: inline-flex;
+		gap: 0.25rem;
+		background: #efe7db;
+		padding: 0.3rem;
+		border-radius: 8px;
 	}
 
 	.tab-btn {
 		background: transparent;
 		border: none;
-		padding: 0.4rem 0.8rem;
-		border-radius: 4px;
+		padding: 0.45rem 0.9rem;
+		border-radius: 6px;
 		font-size: 0.85rem;
 		cursor: pointer;
 		color: #5a4532;
-		font-weight: 500;
-		transition: background 150ms;
+		font-weight: 600;
+		transition: background 150ms, color 150ms;
 	}
 
 	.tab-btn.active {
-		background: #fff;
-		color: #3b2a1a;
+		background: #ffffff;
+		color: #2b1f15;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 	}
 
 	.search-box {
 		position: relative;
 		flex: 1;
-		max-width: 260px;
+		max-width: 280px;
 	}
 
 	.search-input {
 		width: 100%;
-		padding: 0.45rem 1.8rem 0.45rem 0.8rem;
+		padding: 0.5rem 2rem 0.5rem 0.85rem;
 		font-size: 0.85rem;
-		border: 1px solid #d4c7b5;
-		border-radius: 6px;
-		background: #fff;
+		border: 1px solid #dcd1c1;
+		border-radius: 8px;
+		background: #faf8f5;
+		color: #333;
 		box-sizing: border-box;
+		outline: none;
+	}
+
+	.search-input:focus {
+		border-color: #8b5e3c;
+		background: #ffffff;
 	}
 
 	.clear-btn {
 		position: absolute;
-		right: 6px;
+		right: 8px;
 		top: 50%;
 		transform: translateY(-50%);
 		background: none;
 		border: none;
 		cursor: pointer;
-		color: #999;
+		color: #888;
+		font-size: 0.8rem;
+		padding: 2px 4px;
 	}
 
-	.month-section {
-		margin-bottom: 2rem;
+	.months-list {
+		display: flex;
+		flex-direction: column;
+		gap: 2rem;
 	}
 
-	.month-title {
+	.month-block {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.month-heading {
 		font-size: 1.5rem;
 		color: #4a3525;
-		margin: 1.5rem 0 0.8rem;
-		padding-bottom: 0.3rem;
-		border-bottom: 2px solid #e0d4c2;
+		margin: 0.5rem 0 0.8rem;
+		padding-bottom: 0.4rem;
+		border-bottom: 2px solid #eae0d2;
 		text-align: left;
 	}
 
-	.shifts-grid {
+	.shifts-list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.55rem;
 	}
 
-	.shift-card {
+	.shift-row {
 		background: #ffffff;
-		border: 1px solid #e7ddce;
+		border: 1px solid #e7ded0;
 		border-radius: 8px;
-		padding: 0.75rem 1rem;
+		padding: 0.8rem 1.1rem;
 		display: grid;
-		grid-template-columns: 200px 1fr auto;
+		grid-template-columns: 190px 1fr auto;
 		align-items: center;
 		gap: 1rem;
 		transition: transform 120ms ease, box-shadow 120ms ease;
 	}
 
-	.shift-card:hover {
+	.shift-row:hover {
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 	}
 
-	.shift-card.open {
-		border-left: 4px solid #f59e0b;
-		background: #fffdf8;
+	.shift-row.open {
+		border-left: 5px solid #f59e0b;
+		background: #fffefb;
 	}
 
-	.shift-card.filled {
-		border-left: 4px solid #10b981;
+	.shift-row.filled {
+		border-left: 5px solid #10b981;
 	}
 
-	.shift-date-col {
+	.shift-when {
 		display: flex;
 		flex-direction: column;
-		gap: 0.1rem;
+		gap: 0.15rem;
 	}
 
 	.shift-day {
-		font-weight: 600;
+		font-weight: 700;
 		color: #2b1f15;
 		font-size: 0.95rem;
 	}
@@ -453,29 +445,37 @@
 
 	.shift-time {
 		font-size: 0.75rem;
-		color: #8c7b6d;
+		color: #928173;
+		font-weight: 500;
 	}
 
-	.shift-member-col {
+	.shift-who {
 		display: flex;
 		align-items: center;
 	}
 
-	.member-tag {
-		display: inline-block;
-		padding: 0.35rem 0.75rem;
-		border-radius: 20px;
-		font-size: 0.88rem;
-		font-weight: 500;
+	.volunteer-assigned {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
 	}
 
-	.member-tag.filled {
+	.volunteer-pill {
+		display: inline-block;
+		padding: 0.35rem 0.8rem;
+		border-radius: 20px;
+		font-size: 0.88rem;
+		font-weight: 600;
+		width: fit-content;
+	}
+
+	.volunteer-pill.filled {
 		background: #e8f5e9;
 		color: #1b5e20;
 		border: 1px solid #c8e6c9;
 	}
 
-	.member-tag.open {
+	.volunteer-pill.open {
 		background: #fff3e0;
 		color: #b78103;
 		border: 1px solid #ffe0b2;
@@ -483,53 +483,50 @@
 	}
 
 	.shift-note {
-		display: block;
 		font-size: 0.75rem;
-		color: #888;
-		margin-top: 0.2rem;
+		color: #777;
 	}
 
-	.shift-action-col {
+	.shift-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
 	}
 
-	.calendar-actions {
+	.calendar-group {
 		display: flex;
-		gap: 0.3rem;
+		gap: 0.35rem;
 	}
 
-	.calendar-btn {
+	.action-btn {
 		background: #f4ede2;
 		border: 1px solid #dcd1c2;
 		color: #5c4737;
-		padding: 0.3rem 0.6rem;
+		padding: 0.35rem 0.65rem;
 		font-size: 0.75rem;
-		border-radius: 4px;
+		border-radius: 5px;
 		cursor: pointer;
 		text-decoration: none;
-		font-weight: 500;
+		font-weight: 600;
 		transition: background 120ms;
 	}
 
-	.calendar-btn:hover {
+	.action-btn:hover {
 		background: #ebe0d0;
 	}
 
-	.claim-link {
+	.volunteer-action-btn {
 		background: #7b4424;
-		color: #fff;
+		color: #ffffff;
 		border: none;
-		padding: 0.35rem 0.8rem;
-		font-size: 0.8rem;
-		border-radius: 4px;
+		padding: 0.4rem 0.9rem;
+		font-size: 0.82rem;
+		border-radius: 5px;
 		text-decoration: none;
-		font-weight: 500;
+		font-weight: 600;
 		transition: background 150ms;
 	}
 
-	.claim-link:hover {
+	.volunteer-action-btn:hover {
 		background: #5d3117;
 	}
 
@@ -551,46 +548,17 @@
 		margin-top: 0.5rem;
 	}
 
-	.roster-info-card {
-		margin-top: 3rem;
-		padding: 1.5rem;
-		background: #fcf8ee;
-		border: 1px solid #e8decb;
-		border-radius: 8px;
-		color: #4b3828;
-	}
+	@media (max-width: 680px) {
+		.roster-card {
+			padding: 1.5rem 1rem;
+		}
 
-	.roster-info-card h3 {
-		margin: 0 0 0.8rem;
-		font-size: 1.3rem;
-		color: #3b2a1a;
-		text-align: left;
-	}
-
-	.roster-info-card ul {
-		margin: 0;
-		padding-left: 1.2rem;
-		font-size: 0.9rem;
-		line-height: 1.6;
-	}
-
-	.roster-info-card a {
-		color: #7b4424;
-		font-weight: 600;
-	}
-
-	@media (max-width: 650px) {
-		.shift-card {
+		.shift-row {
 			grid-template-columns: 1fr;
-			gap: 0.6rem;
-			text-align: left;
+			gap: 0.7rem;
 		}
 
-		.shift-action-col {
-			justify-content: flex-start;
-		}
-
-		.controls-row {
+		.controls-bar {
 			flex-direction: column;
 			align-items: stretch;
 		}

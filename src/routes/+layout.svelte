@@ -5,13 +5,15 @@
 
 	let { children }: { children: Snippet } = $props();
 
-	const bare = $derived(page.route.id?.startsWith('/admin') ?? false);
+	const bare = $derived(
+		(page.route.id?.startsWith('/admin') || page.route.id?.startsWith('/roster')) ?? false
+	);
 </script>
 
 {#if bare}
 	{@render children()}
 {:else}
-	<header class="paper">
+	<header class="paper site-header">
 		<div class="logo">
 			<a href="/"><img class="swallow no-int" src="/bird_fg.png" alt="Barn Swallow" /></a>
 		</div>
@@ -52,7 +54,7 @@
 	<main>
 		{@render children()}
 	</main>
-	<footer class="paper">
+	<footer class="paper site-footer">
 		<i>All proceeds to <a href="https://mountmoreland.org" target="_blank" rel="noopener noreferrer">Mount Moreland Monitors</a></i> -
 		<i><b>Card and Zapper only</b>, donations welcome</i>
 	</footer>
