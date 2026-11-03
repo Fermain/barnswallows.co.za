@@ -1,0 +1,19 @@
+{
+	"status": "open",
+	"openMessage": "The Barn Swallows have returned! Join us at the viewing site for dusk roosting.",
+	"closedMessage": "The Barn Swallows have now departed KZN for their annual migration to Europe. Thank you to everyone who visited and showed their support. We hope to see you again in November!",
+	"hours": [
+		{ "day": "Friday", "open": "17:00", "close": "19:00" },
+		{ "day": "Saturday", "open": "17:00", "close": "19:00" },
+		{ "day": "Sunday", "open": "17:00", "close": "19:00" }
+	],
+	"admissions": [
+		{ "type": "Adult", "price": "R50" },
+		{ "type": "Child & Resident", "price": "R20" }
+	],
+	"contact": {
+		"email": "admin@barnswallows.co.za",
+		"phone": "0713546964"
+	},
+	"mapUrl": "https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d13708.17481755614!2d31.091339!3d-29.642019!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x1ef710103d043209%3A0x128b036287265d94!2sLake%20Victoria%20Barn%20Swallows%20Viewing%20Site!5e1!3m2!1sen!2sza!4v1731488222054!5m2!1sen!2sza"
+}

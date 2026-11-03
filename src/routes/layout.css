@@ -1,5 +1,4 @@
 /* Minimal CSS Reset */
-
 * {
   &,
   &:before,
@@ -20,7 +19,6 @@ img {
 }
 
 /* Fonts */
-
 .fondamento-regular {
   font-family: "Fondamento", serif;
   font-weight: 400;
@@ -34,14 +32,12 @@ img {
 }
 
 /* Texture */
-
 .paper {
   background-color: #fffae5;
-  background-image: url(cardboard.png);
+  background-image: url(/cardboard.png);
 }
 
 /* Layout */
-
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
@@ -105,35 +101,6 @@ a {
   }
 }
 
-.hoist {
-  position: absolute;
-  inset: 0;
-}
-
-.header-content {
-  padding: 1rem;
-  left: 250px;
-  right: 0;
-  width: auto;
-  display: flex;
-  align-items: center;
-  justify-content: end;
-  gap: 1rem;
-
-  & .header-content-logo {
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: 0.5rem;
-    justify-content: center;
-    flex: 1;
-  }
-
-  & span {
-    font-size: 1.8rem;
-    color: rgba(0, 0, 0, 0.8);
-  }
-}
-
 .clipboard {
   width: 100%;
   max-width: 400px;
@@ -151,12 +118,13 @@ a {
   top: 8rem;
   bottom: 3rem;
   padding: 1rem;
+  overflow-y: auto;
 }
 
 h2 {
   text-align: center;
   margin: 0;
-  font-family: Handlee;
+  font-family: Handlee, cursive;
   font-size: 1.2em;
 }
 
@@ -187,17 +155,6 @@ table.entry-fee td:first-child,
 table.opening-hours th:first-child,
 table.opening-hours td:first-child {
   text-align: left;
-}
-
-.header-social a {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-  width: 2rem;
-}
-
-.header-social {
-  display: flex;
 }
 
 .note {
@@ -231,8 +188,6 @@ footer {
   position: sticky;
   bottom: 0;
 }
-
-/* NEW LAYOUT BELOW */
 
 .grid {
   display: grid;
@@ -272,8 +227,6 @@ footer {
 
 @media (max-width: 900px) {
   header {
-    /* grid-template-columns: 10rem 1fr auto; */
-
     & .brand .brand-content {
       font-size: 1.1rem;
     }
@@ -346,4 +299,8 @@ footer {
   .clipboard-container {
     margin-top: 20%;
   }
+}
+
+.hidden {
+  display: none;
 }
