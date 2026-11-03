@@ -5,7 +5,8 @@
 		formatMemberName,
 		formatDate,
 		formatDayName,
-		formatMonthYear
+		formatMonthYear,
+		type Member
 	} from '#lib/site';
 	import { generateGoogleCalendarUrl, downloadIcsFile } from '#lib/calendar';
 
@@ -16,8 +17,15 @@
 	// Client-side date comparison to hide past shifts
 	const todayStr = new Date().toLocaleDateString('en-CA');
 
-	// Map member slugs/ids to member objects
-	const memberMap = new Map(members.map((m) => [m.slug, m]));
+	// Map members by both slug and id to handle ID-only Frame content edits
+	const memberLookup = $derived.by(() => {
+		const map = new Map<string, Member>();
+		for (const m of members) {
+			if (m.slug) map.set(m.slug, m);
+			if (m.id) map.set(m.id, m);
+		}
+		return map;
+	});
 
 	interface EnrichedShift {
 		slug: string;
@@ -31,7 +39,6 @@
 		memberName: string | null;
 		displayMemberName: string;
 		isFilled: boolean;
-		note?: string;
 	}
 
 	function getWeekendInfo(dateStr: string): { key: string; label: string } {
@@ -64,7 +71,7 @@
 		shifts
 			.filter((s) => s.date >= todayStr)
 			.map((s): EnrichedShift => {
-				const member = s.member ? memberMap.get(s.member) : null;
+				const member = s.member ? memberLookup.get(s.member) : null;
 				const isFilled = !!member;
 				const displayMemberName = member ? formatMemberName(member.name) : 'Open';
 				const weekend = getWeekendInfo(s.date);
@@ -80,8 +87,7 @@
 					memberSlug: s.member ?? null,
 					memberName: member?.name ?? null,
 					displayMemberName,
-					isFilled,
-					note: s.note
+					isFilled
 				};
 			})
 	);
@@ -157,22 +163,6 @@
 	<div class="roster-card">
 		<header class="roster-header">
 			<h1 class="fondamento-regular roster-title">Site Duty Roster</h1>
-			<p class="roster-season">6 November 2026 – 25 April 2027</p>
-
-			<div class="stats-row">
-				<div class="stat-badge total">
-					<span class="stat-number">{totalCount}</span>
-					<span class="stat-label">Upcoming Shifts</span>
-				</div>
-				<div class="stat-badge filled">
-					<span class="stat-number">{filledCount}</span>
-					<span class="stat-label">Manned</span>
-				</div>
-				<div class="stat-badge open">
-					<span class="stat-number">{openCount}</span>
-					<span class="stat-label">Need Volunteers</span>
-				</div>
-			</div>
 
 			<div class="controls-bar">
 				<div class="filter-tabs">
@@ -241,14 +231,9 @@
 
 												<div class="shift-who">
 													{#if shift.isFilled}
-														<div class="volunteer-assigned">
-															<span class="volunteer-pill filled">
-																✓ {shift.displayMemberName}
-															</span>
-															{#if shift.note}
-																<span class="shift-note">{shift.note}</span>
-															{/if}
-														</div>
+														<span class="volunteer-pill filled">
+															✓ {shift.displayMemberName}
+														</span>
 													{:else}
 														<span class="volunteer-pill open">Needs Volunteer</span>
 													{/if}
@@ -292,7 +277,7 @@
 <style>
 	.roster-page {
 		min-height: 100vh;
-		padding: 2.5rem 1rem 5rem;
+		padding: 2rem 1rem 4rem;
 		box-sizing: border-box;
 		display: flex;
 		justify-content: center;
@@ -304,72 +289,23 @@
 		background: #ffffff;
 		border: 1px solid #e5dccf;
 		border-radius: 14px;
-		padding: 2.5rem 2rem;
+		padding: 2rem 2rem 2.5rem;
 		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
 		box-sizing: border-box;
 	}
 
 	.roster-header {
 		text-align: center;
-		margin-bottom: 2rem;
+		margin-bottom: 1.5rem;
 		border-bottom: 1px solid #ece4d7;
-		padding-bottom: 1.8rem;
+		padding-bottom: 1.2rem;
 	}
 
 	.roster-title {
-		font-size: 2.4rem;
-		margin: 0 0 0.3rem;
+		font-size: 2.2rem;
+		margin: 0 0 1rem;
 		color: #3b2a1a;
 		letter-spacing: -0.01em;
-	}
-
-	.roster-season {
-		font-size: 0.95rem;
-		color: #7c6855;
-		margin: 0 0 1.5rem;
-		font-weight: 500;
-	}
-
-	.stats-row {
-		display: flex;
-		justify-content: center;
-		gap: 1.25rem;
-		margin-bottom: 1.8rem;
-		flex-wrap: wrap;
-	}
-
-	.stat-badge {
-		background: #faf7f2;
-		border: 1px solid #e5d9c8;
-		padding: 0.6rem 1.4rem;
-		border-radius: 8px;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		min-width: 110px;
-	}
-
-	.stat-number {
-		font-size: 1.5rem;
-		font-weight: 700;
-		line-height: 1.2;
-		color: #3b2a1a;
-	}
-
-	.stat-label {
-		font-size: 0.72rem;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: #7c6855;
-		margin-top: 0.2rem;
-	}
-
-	.stat-badge.filled .stat-number {
-		color: #2e7d32;
-	}
-
-	.stat-badge.open .stat-number {
-		color: #d32f2f;
 	}
 
 	.controls-bar {
@@ -377,8 +313,7 @@
 		justify-content: space-between;
 		align-items: center;
 		flex-wrap: wrap;
-		gap: 1rem;
-		margin-top: 1rem;
+		gap: 0.8rem;
 	}
 
 	.filter-tabs {
@@ -446,7 +381,7 @@
 	.months-container {
 		display: flex;
 		flex-direction: column;
-		gap: 2.5rem;
+		gap: 2rem;
 	}
 
 	.month-section {
@@ -455,9 +390,9 @@
 	}
 
 	.month-heading {
-		font-size: 1.6rem;
+		font-size: 1.5rem;
 		color: #4a3525;
-		margin: 0.5rem 0 1rem;
+		margin: 0.5rem 0 0.8rem;
 		padding-bottom: 0.4rem;
 		border-bottom: 2px solid #eae0d2;
 		text-align: left;
@@ -466,25 +401,25 @@
 	.weekends-list {
 		display: flex;
 		flex-direction: column;
-		gap: 1.25rem;
+		gap: 1rem;
 	}
 
 	.weekend-block {
 		background: #faf8f5;
 		border: 1px solid #ebd9c5;
 		border-radius: 10px;
-		padding: 0.9rem 1rem 1rem;
+		padding: 0.85rem 1rem 0.95rem;
 	}
 
 	.weekend-header {
-		margin-bottom: 0.65rem;
-		padding-bottom: 0.4rem;
+		margin-bottom: 0.6rem;
+		padding-bottom: 0.35rem;
 		border-bottom: 1px dashed #e2d2be;
 	}
 
 	.weekend-label {
 		font-weight: 700;
-		font-size: 0.9rem;
+		font-size: 0.88rem;
 		color: #6a4f38;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
@@ -549,12 +484,6 @@
 		align-items: center;
 	}
 
-	.volunteer-assigned {
-		display: flex;
-		flex-direction: column;
-		gap: 0.2rem;
-	}
-
 	.volunteer-pill {
 		display: inline-block;
 		padding: 0.35rem 0.8rem;
@@ -575,11 +504,6 @@
 		color: #b78103;
 		border: 1px solid #ffe0b2;
 		font-style: italic;
-	}
-
-	.shift-note {
-		font-size: 0.75rem;
-		color: #777;
 	}
 
 	.shift-actions {

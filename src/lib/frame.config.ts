@@ -16,8 +16,7 @@ export default defineConfig({
 					label: 'Assigned Member',
 					to: 'members',
 					required: false
-				}),
-				note: fields.text({ label: 'Notes / Details', required: false })
+				})
 			},
 			components: {
 				view: () => import('./components/ShiftPreview.svelte')
@@ -32,8 +31,7 @@ export default defineConfig({
 			sort: { field: 'name', direction: 'asc' },
 			fields: {
 				name: fields.text({ label: 'Full Name', description: 'e.g. John Doe' }),
-				email: fields.text({ label: 'Email Address' }),
-				phone: fields.text({ label: 'Cell / WhatsApp Number', required: false })
+				email: fields.text({ label: 'Email Address' })
 			},
 			components: {
 				view: () => import('./components/MemberPreview.svelte')

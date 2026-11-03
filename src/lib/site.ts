@@ -23,16 +23,15 @@ export interface SeasonSettings {
 
 export interface Member {
 	slug: string;
+	id?: string;
 	name: string;
 	email: string;
-	phone?: string;
 }
 
 export interface Shift {
 	slug: string;
 	date: string;
 	member?: string | null;
-	note?: string;
 }
 
 export const season: SeasonSettings = seasonData as SeasonSettings;

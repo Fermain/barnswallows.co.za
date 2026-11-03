@@ -31,11 +31,5 @@
 				For privacy, only first name and initial of last name are displayed on the public roster.
 			</p>
 		</div>
-
-		{#if entry?.phone}
-			<div style="margin-top: 0.8rem; font-size: 0.85rem; color: #555;">
-				<strong>Phone:</strong> {entry.phone}
-			</div>
-		{/if}
 	</div>
 </div>

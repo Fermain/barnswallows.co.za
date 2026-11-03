@@ -4,13 +4,22 @@
 		formatDayName,
 		formatMemberName,
 		members,
-		type Shift
+		type Shift,
+		type Member
 	} from '#lib/site';
 
 	let { entry }: { entry?: Partial<Shift> } = $props();
 
-	const memberMap = new Map(members.map((m) => [m.slug, m]));
-	const assigned = $derived(entry?.member ? memberMap.get(entry.member) : null);
+	// Support looking up member by either Frame id or slug
+	const assigned = $derived.by(() => {
+		if (!entry?.member) return null;
+		const idOrSlug = entry.member;
+		return (
+			members.find((m: Member) => m.id === idOrSlug) ??
+			members.find((m: Member) => m.slug === idOrSlug) ??
+			null
+		);
+	});
 </script>
 
 <div style="padding: 1.5rem; max-width: 440px; margin: 1rem auto; font-family: system-ui, -apple-system, sans-serif;">
@@ -23,11 +32,8 @@
 		<div style="font-size: 1.5rem; margin: 0.5rem 0 0.2rem; color: #222; text-align: left; font-weight: 700;">
 			{entry?.date ? formatDayName(entry.date) : 'Select date'}
 		</div>
-		<div style="font-size: 1rem; color: #555; margin-bottom: 0.4rem;">
+		<div style="font-size: 1rem; color: #555; margin-bottom: 1.2rem;">
 			{entry?.date ? formatDate(entry.date) : ''}
-		</div>
-		<div style="font-size: 0.9rem; color: #666; margin-bottom: 1.2rem;">
-			<strong>Time:</strong> 17:00 – 19:00
 		</div>
 
 		<div style="border-top: 1px solid #eee; padding-top: 1rem;">
@@ -51,11 +57,5 @@
 				</span>
 			{/if}
 		</div>
-
-		{#if entry?.note}
-			<div style="margin-top: 1rem; padding: 0.6rem 0.8rem; background: #faf8f5; border: 1px solid #eee; border-radius: 6px; font-size: 0.85rem; color: #555;">
-				<strong>Note:</strong> {entry.note}
-			</div>
-		{/if}
 	</div>
 </div>
