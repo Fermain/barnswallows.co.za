@@ -1,3 +1,20 @@
 {
-	"assignments": []
+	"assignments": [
+		{
+			"date": "2026-11-06",
+			"member": "c5603db5-fed8-4438-aa75-05bfa2cc5b45"
+		},
+		{
+			"date": "2026-11-07",
+			"member": "b5d36119-4360-40c2-a5a3-b9c877d0f817"
+		},
+		{
+			"date": "2026-11-08",
+			"member": "43615d0e-0cd3-480a-8449-4ea3968abb43"
+		}
+	],
+	"_meta": {
+		"id": "9b77289e-eb19-45df-a1fe-61f2b1ec2d7d",
+		"updated": "2026-11-03T11:16:36Z"
+	}
 }
