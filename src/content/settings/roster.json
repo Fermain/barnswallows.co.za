@@ -1,3 +1,12 @@
 {
-	"assignments": []
+	"assignments": [
+		{
+			"date": "2026-11-07",
+			"member": "b5d36119-4360-40c2-a5a3-b9c877d0f817"
+		}
+	],
+	"_meta": {
+		"id": "9b77289e-eb19-45df-a1fe-61f2b1ec2d7d",
+		"updated": "2026-11-03T11:16:03Z"
+	}
 }
